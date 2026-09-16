@@ -1,0 +1,6 @@
+{
+  "name": "Bingo el Chamo Navideño",
+  "description": "Plataforma de Bingo con Lobby interactivo, muñecos animados (varón y hembra), vestidor y tienda de personajes, clasificación de Tops semanales (Globales 1-3, Regionales 4-6 y Futuros), tómbola esférica de malla con números giratorios para usuarios y administrador, y sistema de transacciones Pago Móvil.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
