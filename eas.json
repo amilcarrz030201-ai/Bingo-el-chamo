@@ -1,0 +1,54 @@
+{
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ifvbswcynljhggqvwqtr.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_K9RqWARmSB7l2g6UuGto4w_O7ZNnvv7",
+        "VITE_SUPABASE_URL": "https://ifvbswcynljhggqvwqtr.supabase.co",
+        "VITE_SUPABASE_ANON_KEY": "sb_publishable_K9RqWARmSB7l2g6UuGto4w_O7ZNnvv7"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ifvbswcynljhggqvwqtr.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_K9RqWARmSB7l2g6UuGto4w_O7ZNnvv7",
+        "VITE_SUPABASE_URL": "https://ifvbswcynljhggqvwqtr.supabase.co",
+        "VITE_SUPABASE_ANON_KEY": "sb_publishable_K9RqWARmSB7l2g6UuGto4w_O7ZNnvv7"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ifvbswcynljhggqvwqtr.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_K9RqWARmSB7l2g6UuGto4w_O7ZNnvv7",
+        "VITE_SUPABASE_URL": "https://ifvbswcynljhggqvwqtr.supabase.co",
+        "VITE_SUPABASE_ANON_KEY": "sb_publishable_K9RqWARmSB7l2g6UuGto4w_O7ZNnvv7"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./google-services-key.json",
+        "track": "production"
+      }
+    }
+  }
+}
