@@ -1,4 +1,5 @@
 {
+  "packageManager": "bun",
   "cli": {
     "version": ">= 12.0.0",
     "appVersionSource": "remote"
@@ -32,6 +33,9 @@
     },
     "production": {
       "autoIncrement": true,
+      "cache": {
+        "bundler": "bun"
+      },
       "android": {
         "buildType": "app-bundle"
       },
