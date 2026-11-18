@@ -13,7 +13,7 @@ import {
 } from "./types";
 import { DEFAULT_COMMUNITY_USERS, isBotAccount } from "./data/communityUsers";
 
-// Clean and validate Supabase URL and Key (strip accidental surrounding quotes and whitespace)
+// Clean and validate Supabase URL and Key (strip accidental surrounding quotes, whitespace, or /rest/v1 suffix)
 function cleanUrl(raw?: string): string {
   const fallback = "https://ifvbswcynljhggqvwqtr.supabase.co";
   if (!raw || typeof raw !== "string") return fallback;
@@ -21,7 +21,8 @@ function cleanUrl(raw?: string): string {
   try {
     const parsed = new URL(sanitized);
     if (parsed.protocol === "http:" || parsed.protocol === "https:") {
-      return sanitized;
+      // Return pure origin so @supabase/supabase-js always builds /rest/v1, /auth/v1, and /realtime/v1 cleanly
+      return parsed.origin;
     }
   } catch {}
   return fallback;
@@ -35,6 +36,7 @@ function cleanKey(raw?: string): string {
 }
 
 export const SUPABASE_URL = cleanUrl(import.meta.env.VITE_SUPABASE_URL);
+export const SUPABASE_REST_URL = `${SUPABASE_URL}/rest/v1`;
 export const SUPABASE_ANON_KEY = cleanKey(import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 export const isSupabaseConfigured = Boolean(

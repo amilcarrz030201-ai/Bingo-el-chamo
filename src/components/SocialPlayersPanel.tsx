@@ -1,21 +1,27 @@
 import React, { useState } from "react";
-import { OnlinePlayer } from "../types";
-import { Users, UserPlus, UserCheck, Search, Sparkles, Send, ShieldCheck, Share2, Copy, Check } from "lucide-react";
+import { OnlinePlayer, DuoTeam } from "../types";
+import { Users, UserPlus, UserCheck, Search, Sparkles, Send, ShieldCheck, Share2, Copy, Check, HeartHandshake } from "lucide-react";
 
 interface Props {
   currentUserEmail: string;
   onlinePlayers: OnlinePlayer[];
   friendEmails: string[];
+  activeDuo?: DuoTeam | null;
   onAddFriend: (email: string) => void;
   onRemoveFriend: (email: string) => void;
+  onInviteDuo?: (email: string, name: string, avatar?: string) => void;
+  onOpenDuoModal?: () => void;
 }
 
 export const SocialPlayersPanel: React.FC<Props> = ({
   currentUserEmail,
   onlinePlayers,
   friendEmails,
+  activeDuo,
   onAddFriend,
   onRemoveFriend,
+  onInviteDuo,
+  onOpenDuoModal,
 }) => {
   const [filter, setFilter] = useState<"all" | "friends">("friends");
   const [searchQuery, setSearchQuery] = useState("");
@@ -134,13 +140,38 @@ export const SocialPlayersPanel: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Zero Bots Verification Banner */}
-      <div className="bg-slate-950 border border-emerald-500/30 rounded-2xl p-3 flex items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2.5">
+      {/* Zero Bots & Duo Mode Verification Banner */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+        <div className="bg-slate-950 border border-emerald-500/30 rounded-2xl p-3 flex items-center gap-2.5">
           <ShieldCheck size={18} className="text-emerald-400 shrink-0" />
           <span className="text-slate-300">
-            <strong className="text-emerald-400 font-bold">100% Sin Bots:</strong> Todos los jugadores en esta sala son personas reales que juegas agregando a amigos. No existen bots automáticos ni perfiles falsos.
+            <strong className="text-emerald-400 font-bold">100% Sin Bots:</strong> Todos los jugadores en esta sala son personas reales.
           </span>
+        </div>
+
+        {/* Duo Mode Quick Card */}
+        <div className="bg-gradient-to-r from-amber-950/60 to-purple-950/60 border border-amber-500/40 rounded-2xl p-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <HeartHandshake size={18} className="text-yellow-400 shrink-0" />
+            <div className="flex flex-col">
+              <span className="font-fredoka font-bold text-yellow-300">
+                {activeDuo ? "👥 Dúo Activo (40% / 40%)" : "👥 Jugar en Dúos (40% / 40%)"}
+              </span>
+              <span className="text-[10px] text-slate-300">
+                {activeDuo
+                  ? `Compañero: ${activeDuo.player1Email.toLowerCase() === currentUserEmail.toLowerCase() ? activeDuo.player2Name : activeDuo.player1Name}`
+                  : "Invita un amigo: si uno gana, se reparten 40% y 40%."}
+              </span>
+            </div>
+          </div>
+          {onOpenDuoModal && (
+            <button
+              onClick={onOpenDuoModal}
+              className="bg-yellow-400 hover:bg-yellow-300 text-slate-950 px-2.5 py-1 rounded-xl text-[11px] font-fredoka font-black shadow transition active:scale-95 cursor-pointer shrink-0"
+            >
+              {activeDuo ? "Ver Dúo" : "Invitar"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -204,7 +235,15 @@ export const SocialPlayersPanel: React.FC<Props> = ({
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-600 flex items-center justify-center text-lg font-black text-slate-950 border border-yellow-300 overflow-hidden shrink-0">
-                      {player.avatar || "👤"}
+                      {player.avatar ? (
+                        player.avatar.startsWith("data:") || player.avatar.startsWith("http") ? (
+                          <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span>{player.avatar}</span>
+                        )
+                      ) : (
+                        "👤"
+                      )}
                     </div>
                     {player.isOnline && (
                       <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-slate-950" />
@@ -226,13 +265,33 @@ export const SocialPlayersPanel: React.FC<Props> = ({
                       {player.email}
                     </span>
                     <span className="text-[10px] text-emerald-400 font-fredoka flex items-center gap-1">
-                      🎟️ {player.cartonesCount || 1} {(player.cartonesCount || 1) === 1 ? "cartón" : "cartones"} • {player.status || "En Sala de Amigos"}
+                      🎟️ {player.cartonesCount && player.cartonesCount > 0 ? `${player.cartonesCount} ${player.cartonesCount === 1 ? "cartón" : "cartones"}` : "Sin cartones aún"} • {player.status || "En Sala de Amigos"}
                     </span>
                   </div>
                 </div>
 
-                {/* Friend Actions */}
+                {/* Friend & Duo Actions */}
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Duo Action */}
+                  {activeDuo && (activeDuo.player1Email.toLowerCase() === player.email.toLowerCase() || activeDuo.player2Email.toLowerCase() === player.email.toLowerCase()) ? (
+                    <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-2 py-1 rounded-xl shadow flex items-center gap-1 border border-yellow-200">
+                      👥 Tu Dúo
+                    </span>
+                  ) : onInviteDuo ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onInviteDuo(player.email.toLowerCase(), player.name, player.avatar);
+                        showToast(`¡Invitaste a ${player.name} a jugar en Dúo (40% / 40%)!`);
+                      }}
+                      className="bg-amber-500/20 hover:bg-amber-500/30 text-yellow-300 border border-amber-500/40 px-2 py-1 rounded-xl text-[10px] font-fredoka font-bold transition active:scale-95 cursor-pointer flex items-center gap-1"
+                      title="Invitar a jugar en Dúo para repartirse 40% y 40% si uno de los dos gana"
+                    >
+                      <HeartHandshake size={11} className="text-yellow-400" />
+                      <span>Dúo</span>
+                    </button>
+                  ) : null}
+
                   {isFriend ? (
                     <>
                       <button

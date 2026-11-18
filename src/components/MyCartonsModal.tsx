@@ -9,6 +9,7 @@ interface Props {
   allCards: BingoCard[];
   drawnBalls: number[];
   history: HistoryRecord[];
+  cartonPrice?: number;
   onSelectCarton: (id: number) => void;
 }
 
@@ -19,6 +20,7 @@ export const MyCartonsModal: React.FC<Props> = ({
   allCards,
   drawnBalls,
   history,
+  cartonPrice = 60,
   onSelectCarton,
 }) => {
   if (!isOpen) return null;
@@ -52,7 +54,7 @@ export const MyCartonsModal: React.FC<Props> = ({
               <span className="text-2xl">🎟️</span>
               Aún no has comprado ningún cartón para esta partida.
               <span className="text-[11px] text-amber-300">
-                Selecciona un cartón (60 VES) en el lobby y haz clic en Comprar.
+                Selecciona un cartón ({cartonPrice.toFixed(2)} VES) en el lobby y haz clic en Comprar.
               </span>
             </div>
           ) : (
