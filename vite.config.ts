@@ -6,7 +6,7 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 
 export default defineConfig(() => {
   return {
-    base: './',
+    base: '/Bingo-el-chamo/',
     plugins: [react(), tailwindcss(), viteSingleFile()],
     resolve: {
       alias: {
@@ -22,8 +22,8 @@ export default defineConfig(() => {
       port: 3000,
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // File watching when DISABLE_HMR === 'true'
+      watch: process.env.DISABLE_HMR === 'true' ? null : undefined,
     },
   };
 });
