@@ -1,6 +1,8 @@
 import express, { Request, Response } from "express";
+import fs from "fs";
 import path from "path";
 import dotenv from "dotenv";
+import JSZip from "jszip";
 import { GoogleGenAI, Type } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 
@@ -33,6 +35,182 @@ function getAI(): GoogleGenAI {
 // Health check endpoint
 app.get("/api/health", (_req: Request, res: Response) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Helper to collect all project source & config files with relative paths
+const EXCLUDED_DIRS = new Set(["node_modules", "dist", ".git", ".vite", ".expo"]);
+const EXCLUDED_FILES = new Set([
+  "CONSOLIDATED_CODEBASE.txt",
+  "BingoElChamo_ProyectoCompleto.zip",
+  ".env",
+  ".env.local",
+]);
+
+function collectProjectFiles(rootDir: string, currentDir: string = rootDir): string[] {
+  const results: string[] = [];
+  const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(currentDir, entry.name);
+    const relPath = path.relative(rootDir, fullPath).replace(/\\/g, "/");
+    if (entry.isDirectory()) {
+      if (EXCLUDED_DIRS.has(entry.name) || relPath === "public/assets/aistudio") continue;
+      results.push(...collectProjectFiles(rootDir, fullPath));
+    } else if (entry.isFile()) {
+      if (EXCLUDED_FILES.has(entry.name) || entry.name.endsWith(".log")) continue;
+      results.push(relPath);
+    }
+  }
+  return results.sort();
+}
+
+// Download Complete Codebase endpoint (Single text file)
+app.get("/api/download/codebase", (_req: Request, res: Response) => {
+  const filePath = path.join(process.cwd(), "CONSOLIDATED_CODEBASE.txt");
+  res.download(filePath, "BingoElChamo_CodigoCompleto.txt");
+});
+
+app.get("/CONSOLIDATED_CODEBASE.txt", (_req: Request, res: Response) => {
+  const filePath = path.join(process.cwd(), "CONSOLIDATED_CODEBASE.txt");
+  res.sendFile(filePath);
+});
+
+// Cached in-memory ZIP buffer for instant responses
+let cachedZipBuffer: Buffer | null = null;
+let zipBuildPromise: Promise<Buffer> | null = null;
+
+async function getProjectZipBuffer(forceRebuild = false): Promise<Buffer> {
+  if (cachedZipBuffer && !forceRebuild) {
+    return cachedZipBuffer;
+  }
+  if (zipBuildPromise && !forceRebuild) {
+    return zipBuildPromise;
+  }
+  zipBuildPromise = (async () => {
+    const rootDir = process.cwd();
+    const files = collectProjectFiles(rootDir);
+    const zip = new JSZip();
+
+    for (const relPath of files) {
+      const fullPath = path.join(rootDir, relPath);
+      const content = fs.readFileSync(fullPath);
+      zip.file(relPath, content);
+    }
+
+    const buffer = await zip.generateAsync({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+      compressionOptions: { level: 1 },
+    });
+    cachedZipBuffer = buffer;
+    zipBuildPromise = null;
+    return buffer;
+  })();
+  return zipBuildPromise;
+}
+
+// Download ALL updated project files in a ZIP preserving exact filenames & folders
+const handleZipDownload = async (req: Request, res: Response) => {
+  try {
+    const force = req.query.refresh === "1";
+    const zipBuffer = await getProjectZipBuffer(force);
+
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", 'attachment; filename="BingoElChamo_ProyectoCompleto.zip"');
+    res.setHeader("Content-Length", String(zipBuffer.length));
+    res.send(zipBuffer);
+  } catch (err: any) {
+    zipBuildPromise = null;
+    console.error("Error generating ZIP:", err);
+    res.status(500).json({ error: "No se pudo generar el archivo ZIP", details: err?.message });
+  }
+};
+
+app.get("/api/download/zip", handleZipDownload);
+app.get("/BingoElChamo_ProyectoCompleto.zip", handleZipDownload);
+
+// List all project files with sizes
+app.get("/api/files", (_req: Request, res: Response) => {
+  try {
+    const rootDir = process.cwd();
+    const files = collectProjectFiles(rootDir).map((relPath) => {
+      const stat = fs.statSync(path.join(rootDir, relPath));
+      return { path: relPath, size: stat.size };
+    });
+    res.json({ count: files.length, files });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "Error listing files" });
+  }
+});
+
+// Download a single project file keeping its exact filename
+app.get("/api/files/download", (req: Request, res: Response) => {
+  const requested = typeof req.query.path === "string" ? req.query.path : "";
+  if (!requested) {
+    return res.status(400).json({ error: "Missing path parameter" });
+  }
+  const rootDir = path.resolve(process.cwd());
+  const normalizedRel = requested.replace(/\\/g, "/").replace(/^\/+/, "");
+  const allowedFiles = new Set(collectProjectFiles(rootDir));
+  if (!allowedFiles.has(normalizedRel)) {
+    return res.status(404).json({ error: "File not found or not accessible" });
+  }
+  const fullPath = path.resolve(rootDir, normalizedRel);
+  if (!fullPath.startsWith(rootDir + path.sep)) {
+    return res.status(403).json({ error: "Forbidden path" });
+  }
+  const fileName = path.basename(fullPath);
+  res.download(fullPath, fileName);
+});
+
+// HTML portal to download ZIP or individual files with their exact names
+app.get("/descargar", (_req: Request, res: Response) => {
+  const rootDir = process.cwd();
+  const files = collectProjectFiles(rootDir);
+  const rowsHtml = files
+    .map((relPath) => {
+      const stat = fs.statSync(path.join(rootDir, relPath));
+      const kb = (stat.size / 1024).toFixed(1);
+      const encoded = encodeURIComponent(relPath);
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-bottom:1px solid #1e293b;">
+        <div style="min-width:0;">
+          <div style="font-family:monospace;font-size:13px;color:#f8fafc;word-break:break-all;">${relPath}</div>
+          <div style="font-size:11px;color:#94a3b8;">${kb} KB</div>
+        </div>
+        <a href="/api/files/download?path=${encoded}" style="flex-shrink:0;background:#1e293b;border:1px solid #334155;color:#fde047;text-decoration:none;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;">Descargar</a>
+      </div>`;
+    })
+    .join("");
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Descargar Archivos — Bingo el Chamo Navideño</title>
+</head>
+<body style="margin:0;background:#020617;color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:24px;">
+  <div style="max-width:860px;margin:0 auto;">
+    <h1 style="margin:0 0 8px;color:#fde047;font-size:24px;">Bingo el Chamo Navideño — Descarga de Archivos</h1>
+    <p style="margin:0 0 20px;color:#cbd5e1;font-size:14px;">Total de archivos actualizados: <strong>${files.length}</strong>. Cada archivo conserva su nombre y ruta exacta.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+      <a href="/api/download/zip" style="background:#f59e0b;color:#020617;text-decoration:none;padding:12px 18px;border-radius:12px;font-weight:800;font-size:14px;">⬇ Descargar TODOS en .ZIP (con carpetas y nombres)</a>
+      <a href="/api/download/apk-html" style="background:#10b981;color:#022c22;text-decoration:none;padding:12px 18px;border-radius:12px;font-weight:800;font-size:14px;">📱 Descargar index.html único (FreeWebToApk)</a>
+      <a href="/api/download/codebase" style="background:#1e293b;color:#e2e8f0;border:1px solid #334155;text-decoration:none;padding:12px 18px;border-radius:12px;font-weight:700;font-size:14px;">📄 Descargar .TXT unificado</a>
+    </div>
+    <div style="background:#0f172a;border:1px solid #1e293b;border-radius:16px;overflow:hidden;">
+      ${rowsHtml}
+    </div>
+  </div>
+</body>
+</html>`);
+});
+
+// Download standalone single-file HTML for FreeWebToApk
+app.get("/api/download/apk-html", (_req: Request, res: Response) => {
+  const filePath = path.join(process.cwd(), "dist", "index.html");
+  res.download(filePath, "index.html");
 });
 
 // Presence in-memory storage
@@ -119,8 +297,18 @@ function getLatestSundayMidnight(now: Date = new Date()): number {
   return d.getTime();
 }
 
+function getNextSundayMidnight(now: Date = new Date()): number {
+  const d = new Date(now);
+  const day = d.getDay();
+  const daysUntilNextSunday = day === 0 ? 7 : 7 - day;
+  d.setDate(d.getDate() + daysUntilNextSunday);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
 function purgeSundayChatMessages(): void {
   const cutoff = getLatestSundayMidnight();
+  // Filter out any user messages sent before the most recent Sunday 00:00:00 AM
   const filtered = chatStore.filter((msg) => {
     if (msg.role === "ADMIN" && msg.id.startsWith("msg-welcome")) {
       return true;
@@ -148,8 +336,10 @@ function purgeSundayChatMessages(): void {
   }
 }
 
-// Initial purge at startup and periodic check every 2 seconds
+// Initial purge at startup
 purgeSundayChatMessages();
+
+// Real-time check every 2 seconds to purge immediately when Sunday 00:00:00 AM arrives
 setInterval(purgeSundayChatMessages, 2000);
 
 app.get("/api/chat", (_req: Request, res: Response) => {
@@ -171,16 +361,18 @@ app.post("/api/chat", (req: Request, res: Response) => {
     senderName: senderName || cleanEmail.split("@")[0],
     senderAvatar: senderAvatar || "👤",
     role,
-    text: text.trim().slice(0, 300),
+    text: text.trim().slice(0, 300), // Max 300 chars per message
     timestamp: new Date().toISOString(),
     badge: badge || undefined,
   };
 
   chatStore.push(newMsg);
+  // Keep last 150 messages
   if (chatStore.length > 150) {
     chatStore.splice(0, chatStore.length - 150);
   }
 
+  // Also update sender presence as active right now
   presenceStore.set(cleanEmail, {
     email: cleanEmail,
     name: senderName || cleanEmail.split("@")[0],
@@ -193,7 +385,7 @@ app.post("/api/chat", (req: Request, res: Response) => {
   res.json({ success: true, message: newMsg, messages: chatStore });
 });
 
-// Analyze Pago Móvil Receipt / Voucher with Gemini OCR
+// Analyze Pago Móvil Receipt / Voucher
 app.post("/api/receipt/analyze", async (req: Request, res: Response) => {
   try {
     const { imageBase64, mimeType = "image/jpeg" } = req.body;
@@ -209,7 +401,7 @@ app.post("/api/receipt/analyze", async (req: Request, res: Response) => {
 You are an expert banking receipt OCR validator for Venezuelan banking transactions (Pago Móvil, transferencias bancarias como Banesco, Mercantil, BDV, Bancamiga, Provincial, etc.).
 Carefully inspect this payment voucher/capture image.
 Extract:
-- amount: The monetary amount transferred in VES (number only). CRITICAL: In Venezuelan bank receipts, decimals use comma (e.g. "Bs. 500,00" = 500 VES, "Bs. 75,00" = 75 VES). Do NOT confuse phone numbers, dates, or transaction reference numbers with the amount. If ambiguous, default to 0.
+- amount: The monetary amount transferred in VES (number only). CRITICAL: In Venezuelan bank receipts, decimals use comma (e.g. "Bs. 500,00" = 500 VES, "Bs. 75,00" = 75 VES). Do NOT confuse phone numbers (e.g. 0414-75...), dates, or transaction reference numbers with the amount. If the amount is ambiguous, default to 0.
 - reference: The transaction reference number / comprobante (string of digits).
 - bank: The name of the bank (e.g. "Banesco", "Banco de Venezuela", "Mercantil", "Bancamiga").
 - date: Date or timestamp on receipt if visible.
@@ -299,6 +491,27 @@ let gameTimerState: GameTimerState = {
   gameRound: 1,
 };
 
+// Global Tombola State Synchronization
+interface TombolaState {
+  drawnBalls: number[];
+  currentBall: number | null;
+  autoMode: boolean;
+  isGameCompleted: boolean;
+  drawIntervalSeconds: number;
+  lastUpdated: number;
+  gameId: string;
+}
+
+let tombolaState: TombolaState = {
+  drawnBalls: [],
+  currentBall: null,
+  autoMode: false,
+  isGameCompleted: false,
+  drawIntervalSeconds: 4,
+  lastUpdated: Date.now(),
+  gameId: `game-${Date.now()}`,
+};
+
 app.get("/api/game/timer", (_req: Request, res: Response) => {
   const now = Date.now();
   if (!gameTimerState.isPaused && gameTimerState.targetTimestamp) {
@@ -322,11 +535,13 @@ app.post("/api/game/timer", (req: Request, res: Response) => {
   if (typeof isPaused === "boolean") {
     gameTimerState.isPaused = isPaused;
     if (isPaused) {
+      // Freeze remaining seconds at current point
       if (gameTimerState.targetTimestamp) {
         const diff = Math.max(0, Math.ceil((gameTimerState.targetTimestamp - now) / 1000));
         gameTimerState.remainingSeconds = diff;
       }
     } else {
+      // Resume target timestamp from current remaining seconds
       gameTimerState.targetTimestamp = now + gameTimerState.remainingSeconds * 1000;
     }
   }
@@ -349,27 +564,7 @@ app.post("/api/game/timer", (req: Request, res: Response) => {
   res.json({ success: true, timer: { ...gameTimerState, serverTime: now } });
 });
 
-// Global Tombola State Synchronization
-interface TombolaState {
-  drawnBalls: number[];
-  currentBall: number | null;
-  autoMode: boolean;
-  isGameCompleted: boolean;
-  drawIntervalSeconds: number;
-  lastUpdated: number;
-  gameId: string;
-}
-
-let tombolaState: TombolaState = {
-  drawnBalls: [],
-  currentBall: null,
-  autoMode: false,
-  isGameCompleted: false,
-  drawIntervalSeconds: 4,
-  lastUpdated: Date.now(),
-  gameId: `game-${Date.now()}`,
-};
-
+// Global Tombola Endpoints
 app.get("/api/game/tombola", (_req: Request, res: Response) => {
   res.json(tombolaState);
 });
@@ -428,7 +623,7 @@ interface TorneoBilletalState {
 }
 
 let torneoBilletalState: TorneoBilletalState = {
-  isEnabled: false,
+  isEnabled: false, // Default cerrado para usuarios hasta que el administrador lo active
   title: "Gran Torneo Billetal - Bingo el Chamo",
   prizeVES: 15000,
   entryFeeVES: 100,
@@ -473,6 +668,10 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Bingo el Chamo Server running on http://0.0.0.0:${PORT}`);
+    // Pre-warm ZIP archive in background so /api/download/zip responds instantaneously
+    getProjectZipBuffer().catch((err) => {
+      console.warn("ZIP pre-warm notice:", err);
+    });
   });
 }
 

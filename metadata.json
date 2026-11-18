@@ -2,7 +2,5 @@
   "name": "Bingo el Chamo Navideño",
   "description": "Plataforma de Bingo con Lobby interactivo, muñecos animados, tienda de personajes, Tops semanales, tómbola esférica de malla, sistema de cantada y pausa de juego con anuncio global a todos los jugadores, confeti festivo, detección de oportunidad de ganancia a tiempo/pasada, y notificaciones toast no invasivas.",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

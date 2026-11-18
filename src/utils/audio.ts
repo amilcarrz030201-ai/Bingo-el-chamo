@@ -223,6 +223,103 @@ class AudioManager {
     } catch {}
   }
 
+  // EFFECT 4B: Special Winning Ball 3D Confetti Fanfare
+  public playSpecialBallFanfare() {
+    if (this.isMuted) return;
+    try {
+      const ctx = this.getAudioContext();
+      if (!ctx || !this.sfxGain) return;
+
+      const now = ctx.currentTime;
+      // Golden celebratory arpeggio: G4 - C5 - E5 - G5 - C6 with shimmering sustain
+      const arpeggio = [392.0, 523.25, 659.25, 783.99, 1046.5];
+      arpeggio.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const start = now + idx * 0.07;
+
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(freq, start);
+
+        gain.gain.setValueAtTime(0.2, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.45);
+
+        osc.connect(gain);
+        gain.connect(this.sfxGain!);
+
+        osc.start(start);
+        osc.stop(start + 0.45);
+      });
+    } catch {}
+  }
+
+  // EFFECT 5: Subtle notification chime for Toast notifications
+  public playToast() {
+    if (this.isMuted) return;
+    try {
+      const ctx = this.getAudioContext();
+      if (!ctx || !this.sfxGain) return;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
+      osc.frequency.exponentialRampToValueAtTime(1174.66, ctx.currentTime + 0.1); // D6
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.2);
+    } catch {}
+  }
+
+  // EFFECT 6: Warning beep when user misses opportunity or invalid claim
+  public playAlert() {
+    if (this.isMuted) return;
+    try {
+      const ctx = this.getAudioContext();
+      if (!ctx || !this.sfxGain) return;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(320, ctx.currentTime);
+      osc.frequency.setValueAtTime(260, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.3);
+    } catch {}
+  }
+
+  // EFFECT 7: Celebratory start fanfare when countdown ends and game starts automatically
+  public playGameStart() {
+    if (this.isMuted) return;
+    try {
+      const ctx = this.getAudioContext();
+      if (!ctx || !this.sfxGain) return;
+
+      const notes = [392.0, 523.25, 659.25, 783.99, 1046.5]; // G4, C5, E5, G5, C6
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        const startTime = ctx.currentTime + idx * 0.08;
+        const dur = idx === notes.length - 1 ? 0.5 : 0.2;
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(0.25, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
+        osc.connect(gain);
+        gain.connect(this.sfxGain!);
+        osc.start(startTime);
+        osc.stop(startTime + dur);
+      });
+    } catch {}
+  }
+
   // MUSIC ENGINE: Procedural multi-track audio playback
   public playTrack(index?: number) {
     if (index !== undefined) {
