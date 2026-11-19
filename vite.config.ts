@@ -39,7 +39,7 @@ function webViewClassicSingleFilePlugin(): Plugin {
 
 export default defineConfig(() => {
   return {
-    base: './',
+    base: '/bingo-el-chamo/',
     plugins: [
       react(),
       tailwindcss(),
