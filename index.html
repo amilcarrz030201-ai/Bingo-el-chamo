@@ -1,8 +1,6 @@
 <!doctype html>
 <html lang="es">
   <head>
-    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-    <script>eruda.init();</script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Bingo el Chamo Navideño</title>
@@ -15,7 +13,7 @@
     <meta property="og:image" content="./conejito_logo.jpg" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
     <style>
       html, body {
         background-color: #020617;
@@ -50,7 +48,32 @@
     </style>
     <script>
       (function () {
+        // 1. Protect localStorage on WebViews with disabled DOM storage or file:// SecurityError
+        try {
+          var testKey = '__chamo_ls_test__';
+          window.localStorage.setItem(testKey, '1');
+          window.localStorage.removeItem(testKey);
+        } catch (lsErr) {
+          try {
+            var memStore = {};
+            Object.defineProperty(window, 'localStorage', {
+              configurable: true,
+              value: {
+                getItem: function (k) { return Object.prototype.hasOwnProperty.call(memStore, k) ? memStore[k] : null; },
+                setItem: function (k, v) { memStore[k] = String(v); },
+                removeItem: function (k) { delete memStore[k]; },
+                clear: function () { memStore = {}; },
+                key: function (i) { return Object.keys(memStore)[i] || null; },
+                get length() { return Object.keys(memStore).length; }
+              }
+            });
+          } catch (defErr) {}
+        }
+
+        // 2. Capture any startup errors or timeouts so the spinner never gets stuck silently
+        var lastBootErr = '';
         function showBootError(msg) {
+          if (msg) lastBootErr = String(msg);
           var root = document.getElementById('root');
           if (!root) return;
           if (root.getAttribute('data-mounted') === 'true') return;
@@ -60,17 +83,26 @@
                 '<div style="font-size:36px;margin-bottom:8px;">🤠</div>' +
                 '<h2 style="margin:0 0 8px;color:#fcd34d;font-size:20px;">Bingo el Chamo</h2>' +
                 '<p style="margin:0 0 14px;color:#cbd5e1;font-size:13px;line-height:1.5;">No se pudo iniciar correctamente en este navegador WebView.</p>' +
-                '<p style="margin:0 0 16px;color:#f87171;font-size:11px;word-break:break-word;background:#020617;padding:8px;border-radius:8px;">' + String(msg || 'Error de carga') + '</p>' +
+                '<p style="margin:0 0 16px;color:#f87171;font-size:11px;word-break:break-word;background:#020617;padding:8px;border-radius:8px;">' + String(lastBootErr || 'Tiempo de espera agotado al iniciar el script') + '</p>' +
                 '<button onclick="window.location.reload()" style="width:100%;padding:12px 16px;border:none;border-radius:12px;background:#f59e0b;color:#020617;font-weight:700;font-size:14px;cursor:pointer;">Reintentar</button>' +
               '</div>' +
             '</div>';
         }
+        window.__CHAMO_SHOW_BOOT_ERROR__ = showBootError;
         window.addEventListener('error', function (e) {
-          if (e && e.message) showBootError(e.message);
+          if (e && (e.message || e.error)) {
+            showBootError(e.message || (e.error && e.error.message) || 'Error de script');
+          }
         });
         window.addEventListener('unhandledrejection', function (e) {
           if (e && e.reason) showBootError(e.reason.message || String(e.reason));
         });
+        setTimeout(function () {
+          var root = document.getElementById('root');
+          if (root && root.getAttribute('data-mounted') !== 'true') {
+            showBootError(lastBootErr || 'El visor WebView tardó demasiado o bloqueó el arranque.');
+          }
+        }, 10000);
       })();
     </script>
   </head>
@@ -85,4 +117,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

@@ -55,12 +55,20 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
 const rootEl = document.getElementById("root");
 if (rootEl) {
-  rootEl.setAttribute("data-mounted", "true");
-  createRoot(rootEl).render(
-    <StrictMode>
-      <ErrorBoundary>
-        <App />
-      </ErrorBoundary>
-    </StrictMode>
-  );
+  try {
+    createRoot(rootEl).render(
+      <StrictMode>
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
+      </StrictMode>
+    );
+    rootEl.setAttribute("data-mounted", "true");
+  } catch (err: any) {
+    console.error("Failed to mount Bingo el Chamo:", err);
+    const showBootError = (window as any).__CHAMO_SHOW_BOOT_ERROR__;
+    if (typeof showBootError === "function") {
+      showBootError(err?.message || String(err));
+    }
+  }
 }

@@ -80,17 +80,23 @@ export const Tombola3DConfetti: React.FC<Props> = ({
     camera.position.set(0, 0, 7.5);
     camera.lookAt(0, 0, 0);
 
-    // 2. Renderer
-    const renderer = new THREE.WebGLRenderer({
-      alpha: true,
-      antialias: !isSoftwareGl,
-      powerPreference: "high-performance",
-    });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    container.replaceChildren(renderer.domElement);
-    rendererRef.current = renderer;
+    // 2. Renderer (safe for WebViews where WebGL may be disabled)
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        alpha: true,
+        antialias: !isSoftwareGl,
+        powerPreference: "high-performance",
+      });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      container.replaceChildren(renderer.domElement);
+      rendererRef.current = renderer;
+    } catch (webglErr) {
+      console.warn("WebGL 3D confetti not available in this WebView:", webglErr);
+      return;
+    }
 
     // 3. Lighting (Warm Key + Ambient + Rim for high specular shine on confetti)
     const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
